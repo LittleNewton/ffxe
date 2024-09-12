@@ -8,8 +8,8 @@ from pathlib import Path
 import dill
 import yaml
 
-import models
-from utils import *
+import ffxe.models
+from ffxe.utils import *
 
 FW_NAME_PTRN = re.compile(r"(?P<fwname>[\w-]+)-(?P<engine>\w+)-cfg\.pkl")
 
