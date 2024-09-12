@@ -7,8 +7,8 @@ import capstone as CS
 from unicorn import *
 from unicorn.arm_const import *
 
-from mappings import *
-from arch.armv7e import *
+from ..mappings import *
+from .armv7e import *
 
 """
 wrapper objects for capstone instructions

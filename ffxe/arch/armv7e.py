@@ -6,7 +6,7 @@ from ctypes import memmove, pointer, sizeof
 from unicorn import *
 from unicorn.arm_const import *
 
-from mappings import *
+from ..mappings import *
 
 
 

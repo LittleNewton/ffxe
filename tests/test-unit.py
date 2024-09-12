@@ -29,7 +29,7 @@ if __name__ == "__main__":
     for fw_path in sorted(fw_examples):
 
         ffxe = FFXEngine(
-            pd="mmaps/nrf52832.yml",
+            pd="ffxe/mmaps/nrf52832.yml",
             path=fw_path,
             log_stdout=False,
             log_insn=False,

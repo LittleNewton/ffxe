@@ -18,8 +18,8 @@ from capstone import Cs
 from capstone.arm_const import *
 from elftools.elf.elffile import ELFFile
 
-from utils import *
-from ihex import IHex
+from .utils import *
+from .ihex import IHex
 
 
 class FirmwareImage():

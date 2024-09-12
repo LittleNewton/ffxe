@@ -22,12 +22,12 @@ import capstone as CS
 from capstone import *
 from capstone.arm_const import *
 
-import mappings
-from models import *
-from arch.arm import *
-from arch.armv7e import *
-from mappings import *
-from utils import *
+import ffxe.mappings as mappings
+from .models import *
+from .arch.arm import *
+from .arch.armv7e import *
+from .mappings import *
+from .utils import *
 
 
 CallStackEntry = namedtuple('CallStackEntry', 
