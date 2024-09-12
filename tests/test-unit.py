@@ -7,6 +7,7 @@ from pathlib import Path
 
 import dill
 
+from ffxe import mmaps
 from ffxe import *
 
 """
@@ -29,7 +30,8 @@ if __name__ == "__main__":
     for fw_path in sorted(fw_examples):
 
         ffxe = FFXEngine(
-            pd="ffxe/mmaps/nrf52832.yml",
+            # pd="ffxe/mmaps/nrf52832.yml",
+            pd=mmaps["nrf52832"],
             path=fw_path,
             log_stdout=False,
             log_insn=False,
