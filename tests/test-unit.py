@@ -1,4 +1,5 @@
 import os
+import json
 from os.path import basename, splitext, isdir
 from copy import deepcopy
 from glob import glob
@@ -19,7 +20,7 @@ OUT_DIR = f"{PROJ_ROOT}/tests/cfgs/unit-tests"
 
 if __name__ == "__main__":
 
-    fw_examples = glob(f'{PROJ_ROOT}/examples/unit-tests/*.bin')
+    fw_examples = sorted(glob(f'{PROJ_ROOT}/examples/unit-tests/*.bin'))
 
     if not isdir(OUT_DIR):
         Path(OUT_DIR).mkdir(parents=True, exist_ok=True)
@@ -27,7 +28,7 @@ if __name__ == "__main__":
     ffxe_cfgs = {}
     table = []
 
-    for fw_path in sorted(fw_examples):
+    for fw_path in fw_examples:
 
         ffxe = FFXEngine(
             # pd="ffxe/mmaps/nrf52832.yml",
@@ -74,3 +75,7 @@ if __name__ == "__main__":
         }
         with open(f"{OUT_DIR}/{name}-ffxe-cfg.pkl", 'wb') as pklfile:
             dill.dump(graph, pklfile)
+
+        export_cfg = cfg.export_dict()
+        with open(f"{OUT_DIR}/{name}.ffxe-cfg.json", 'w') as f:
+            json.dump(export_cfg, f, indent=2)

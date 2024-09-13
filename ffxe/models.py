@@ -11,7 +11,7 @@ from copy import deepcopy
 from typing import Type, Union
 from ctypes import memmove, pointer, sizeof
 from tempfile import NamedTemporaryFile
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 import capstone
 from capstone import Cs
@@ -20,6 +20,14 @@ from elftools.elf.elffile import ELFFile
 
 from .utils import *
 from .ihex import IHex
+
+MemAccess = namedtuple("MemAccess", [
+    'insn_address',   # address of memory access instruction
+    'access_type',    # memory access type ('r' for read, 'w' for write)
+    'access_value',   # value read or written
+    'access_size',    # memory access size
+    'mem_address',    # address of basic block containing instruction
+])
 
 
 class FirmwareImage():
@@ -152,38 +160,6 @@ class FirmwareImage():
 
         # binary chunk to disassemble
         chunk = self.raw[address:address + size]
-
-        # # disassembling with objdump, but this is extremely slow...
-        # # going to need to default to capstone despite its obvious bugs
-        # with NamedTemporaryFile() as ntf:
-        #     # write block to temporary file for objdump
-        #     ntf.write(self.raw[address:address + size])
-        #     ntf.flush()
-
-        #     block_txt = subprocess.run([
-        #             'arm-none-eabi-objdump', 
-        #             '-bbinary',
-        #             f'-m{self.isa}',
-        #             '-Mforce-thumb',
-        #             f'--adjust-vma={hex(address)}',
-        #             '-D', ntf.name],
-        #         stdout=subprocess.PIPE,
-        #     ).stdout.decode('utf-8').split('\n')
-
-        # disasm_txt = []
-        # for line in block_txt:
-        #     if not self.RE_PTRN_DISASM.search(line):
-        #         # found actual disassembly line
-        #         continue
-
-        #     # convert tabs to spaces (maintaining visual spacing)
-        #     newline = []
-        #     for j, char in enumerate(line):
-        #         if char == '\t':
-        #             newline.append(' '*(4 - (j % 4)))
-        #         else:
-        #             newline.append(char)
-        #     disasm_txt.append(''.join(newline))
 
         # helper function to format bytes
         format_bytes = lambda b: b''.join([c[::-1] for c in chunks(2, b)]).hex(' ', 2)
@@ -436,7 +412,7 @@ class BBlock():
         return self.addr
 
     def fmt_mem_log(self):
-        return '\n'.join(["pc:0x{:x} {} 0x{:08X} @ 0x{:08X}".format(
+        return '\n'.join(["pc:0x{:x} {} [0x{:08X}; {}] @ 0x{:08X}".format(
             *entry) for entry in self.mem_log])
 
     def __copy__(self):
@@ -456,6 +432,16 @@ class BBlock():
         self.indirect = False
         self.returns = False
 
+    def export_dict(self):
+        """convert the basic block as a dict for export"""
+        return {
+            "address": self.addr,
+            "size": self.size,
+            "insn_addrs": [address for address in sorted(self.insns.keys())],
+            "predecessors": [block.addr for block in self.parents],
+            "successors": [block.addr for block in self.children],
+        }
+
 
 NullBlock = BBlock(address=0, size=0, insns={}, fn_addr=0, bytedata=b'')
 
@@ -469,6 +455,7 @@ class CFG():
         self.edges = set()  # tuples of bblock addresses
         self.removed_edges = []
         self.removed_blocks = []
+        self.entrypoints = set()
 
     def is_new_block(self, address):
         """check if block has not yet been added to cfg"""
@@ -658,8 +645,30 @@ class CFG():
                     or self.bblocks[addr].delete):
                 self.remove_block(self.bblocks[addr])
 
-
     # def to_networkx(self):
     #     """convert the cfg to a networkx digraph"""
 
+    def export_dict(self):
+        """export the cfg as a dictionary to be saved as json"""
+        indirect_edges = set()
+        mem_accesses = set()
+        for block in self.bblocks.values():
+            if block.indirect:
+                for successor in block.children:
+                    indirect_edges.add((max(block.insns.keys()), successor.addr))
+            for access in block.mem_log:
+                mem_accesses.add(access)
+        mem_accesses = [{
+                'insn_address': entry.insn_address,
+                'access_type': entry.access_type,
+                'mem_address': entry.mem_address,
+                'access_size': entry.access_size,
+                'access_value': entry.access_value,
+            } for entry in mem_accesses]
 
+        return {
+            "nodes": [block.export_dict() for block in self.bblocks.values()],
+            "indirect_jumps": list(sorted(indirect_edges)),
+            "entrypoints": list(sorted(self.entrypoints)),
+            "mem_accesses": list(mem_accesses),
+        }

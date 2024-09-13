@@ -617,21 +617,6 @@ class FFXEngine():
             self.logger.error(f"CS MODE: {self.cs.mode}\nPC: {hex(self.context.pc)}")
             raise UcError(UC_ERR_INSN_INVALID)
 
-        # if address not in self.fw.disasm:
-        #     # instruction not in pre-computed disassembly,
-        #     # probably invalid, delete block and raise error
-        #     self.context.bblock.delete = True
-        #     self.cfg.remove_block(self.context.bblock)
-        #     raise UcError(UC_ERR_INSN_INVALID)
-
-        ## TODO: getting rid of predisasm means this needs to be dealt with.
-        ## will likely need to disasm on block encounter...
-        # if self.log_insn:
-        #     self.logger.info("0x{:x}: {:<10} {}".format(
-        #         address,
-        #         self.fw.disasm[address]['raw_str'],
-        #         self.fw.disasm[address]['mnemonic']))
-
         if self.log_insn:
             try:
                 self.logger.info(str(self.context.bblock.insns[address]))
@@ -1041,15 +1026,16 @@ class FFXEngine():
                         self.cfg.backward_reachability(self.context.bblock, ib=False)
                         uc.emu_stop()
                         return
-                read_info = (
+                read_info = MemAccess(
                     uc.reg_read(UC_ARM_REG_PC), # instruction address
                     'r',                        # access type
                     val,                        # read data
+                    load_size,                  # read size
                     read_addr,
                 )
                 if read_info not in self.context.bblock.mem_log:
-                    self.context.bblock.mem_log.append(read_info)
-                self.logger.info("pc @ 0x{:>08X} : {} 0x{:>08X} @ 0x{:>08X}".format(
+                    self.context.bblock.mem_log.append(copy(read_info))
+                self.logger.info("pc @ 0x{:>08X} : {} [0x{:>08X}; {}] @ 0x{:>08X}".format(
                     *read_info))
                     # *self.context.bblock.mem_log[-1]))
 
@@ -1133,19 +1119,20 @@ class FFXEngine():
                     raise UcError(UC_ERR_WRITE_UNMAPPED)
                     # uc.emu_stop()
                     # return
-                info = (
+                info = MemAccess(
                     uc.reg_read(UC_ARM_REG_PC), # instruction address
                     'w',                        # access type
                     val,                        # written value
+                    size,                       # write size
                     addr,                       # write location
                 )
                 if info not in self.context.bblock.mem_log:
-                    self.context.bblock.mem_log.append(info)
+                    self.context.bblock.mem_log.append(copy(info))
                 if addr not in self.mem_writes:
                     self.mem_writes[addr] = []
                 if val not in self.mem_writes[addr]:
                     self.mem_writes[addr].append(val)
-                self.logger.info("pc @ 0x{:>08X} : {} 0x{:>08x} @ {:>08X}".format(*info))
+                self.logger.info("pc @ 0x{:>08X} : {} [0x{:>08x}; {}] @ {:>08X}".format(*info))
                 self.context.mem_state[addr] = val.to_bytes(size, 'little')
 
                 # when interrupts enabled for peripheral, 
@@ -1246,19 +1233,6 @@ class FFXEngine():
                 self.uc.emu_stop()
         return
 
-
-    # def _hook_mem(self, uc, access, address, size, value, user_data):
-    #     """callback after every memory access"""
-    #     # tracking memory accesses
-    #     info = (
-    #         uc.reg_read(UC_ARM_REG_PC),             # inst addr
-    #         'w' if access in [UC_MEM_WRITE, UC_MEM_WRITE_PROT] else 'r', # access type
-    #         value,
-    #         address,
-    #     )
-    #     self.context.bblock.mem_log.append(info)
-    #     self.logger.info("pc @ 0x{:08X} : {} 0x{:>8x} @ 0x{:08X}".format(
-    #         *self.context.bblock.mem_log[-1]))
 
     def _hook_stop_before_call(self, uc, address, size, user_data):
         """
@@ -1456,6 +1430,7 @@ class FFXEngine():
 
                         self.unexplored.append(
                             FBranch(**branch_info))
+                        self.cfg.entrypoints.add(word)
                     table_offset += 4
         else:
             # for ARM mode, no NVIC, load the known entrypoints from
